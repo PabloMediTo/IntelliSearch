@@ -42,12 +42,6 @@ npm run build
 npm run preview
 ```
 
-### Lint
-
-```bash
-npm run lint
-```
-
 ## Project Structure
 
 ```
