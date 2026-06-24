@@ -19,8 +19,8 @@ An AI-powered product chatbot built with React, TypeScript, and Vite. Users can 
 ### Installation
 
 ```bash
-git clone https://github.com/<your-username>/IntelliSearch.git
-cd IntelliSearch
+git clone https://github.com/<your-username>/InventiSearch.git
+cd InventiSearch
 npm install
 ```
 

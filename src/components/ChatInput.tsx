@@ -43,7 +43,8 @@ export function ChatInput({ onSend, disabled }: Props) {
     if (!container || !analyser) return;
 
     const dataArray = new Uint8Array(analyser.fftSize);
-    const maxBars = Math.floor(container.clientWidth / 5); // bar width 3px + gap 2px
+    const bars = container.querySelectorAll<HTMLDivElement>(".voice-bar");
+    const maxBars = bars.length; // match data capacity to DOM bar count
 
     function draw() {
       if (!isListeningRef.current) return;
@@ -51,29 +52,24 @@ export function ChatInput({ onSend, disabled }: Props) {
 
       analyser!.getByteTimeDomainData(dataArray);
 
-      // Calculate current volume (RMS)
       let sum = 0;
       for (let i = 0; i < dataArray.length; i++) {
         const val = (dataArray[i] - 128) / 128;
         sum += val * val;
       }
       const rms = Math.sqrt(sum / dataArray.length);
-      const volume = Math.min(1, rms * 8); // amplify and cap at 1
+      const volume = Math.min(1, rms * 8);
 
-      // Push new bar value, keep scrolling left to right
       barsDataRef.current.push(volume);
       if (barsDataRef.current.length > maxBars) {
         barsDataRef.current.shift();
       }
 
-      // Update bar heights
-      const bars = container!.querySelectorAll<HTMLDivElement>(".voice-bar");
       const data = barsDataRef.current;
       bars.forEach((bar, i) => {
-        const dataIndex = data.length - bars.length + i;
+        const dataIndex = data.length - maxBars + i;
         if (dataIndex >= 0 && dataIndex < data.length) {
-          const h = Math.max(4, data[dataIndex] * 34);
-          bar.style.height = `${h}px`;
+          bar.style.height = `${Math.max(4, data[dataIndex] * 34)}px`;
         } else {
           bar.style.height = "4px";
         }
@@ -86,22 +82,33 @@ export function ChatInput({ onSend, disabled }: Props) {
   async function startVoice() {
     if (!SpeechRecognition || isListening) return;
 
+    // Create AudioContext synchronously before any await so iOS Safari
+    // considers it inside the user gesture and doesn't suspend it.
+    const audioContext = new AudioContext();
+    audioContextRef.current = audioContext;
+
     // Start audio stream for visualization
     let stream: MediaStream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch {
+      audioContext.close();
+      audioContextRef.current = null;
       return;
     }
+
+    // Resume in case the browser auto-suspended it (common on iOS)
+    if (audioContext.state === "suspended") {
+      try { await audioContext.resume(); } catch { /* visualizer won't work but recording still will */ }
+    }
+
     streamRef.current = stream;
 
-    const audioContext = new AudioContext();
     const source = audioContext.createMediaStreamSource(stream);
     const analyser = audioContext.createAnalyser();
     analyser.fftSize = 2048;
     source.connect(analyser);
 
-    audioContextRef.current = audioContext;
     analyserRef.current = analyser;
 
     // Start speech recognition
